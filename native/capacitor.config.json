@@ -1,0 +1,21 @@
+{
+  "appId": "com.alanfit.app",
+  "appName": "Alan Fit",
+  "webDir": "www",
+  "server": {
+    "url": "https://alanfit.vercel.app",
+    "allowNavigation": ["alanfit.vercel.app"],
+    "errorPath": "index.html"
+  },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#060A18",
+    "preferredContentMode": "mobile",
+    "limitsNavigationsToAppBoundDomains": false
+  },
+  "plugins": {
+    "SplashScreen": { "launchShowDuration": 600, "backgroundColor": "#060A18", "showSpinner": false },
+    "StatusBar": { "style": "DARK", "backgroundColor": "#060A18", "overlaysWebView": true },
+    "LocalNotifications": { "iconColor": "#22D3EE" }
+  }
+}
