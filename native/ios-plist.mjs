@@ -17,7 +17,5 @@ set("ITSAppUsesNonExemptEncryption", "false");
 if (!/<key>ITSAppUsesNonExemptEncryption<\/key>\s*<false\/>/.test(xml)) {
   xml = xml.replace(/<key>ITSAppUsesNonExemptEncryption<\/key>\s*<string>false<\/string>/, "<key>ITSAppUsesNonExemptEncryption</key>\n\t<false/>");
 }
-if (process.env.APP_VERSION) set("CFBundleShortVersionString", process.env.APP_VERSION);
-if (process.env.BUILD_NUMBER) set("CFBundleVersion", process.env.BUILD_NUMBER);
 writeFileSync(path, xml);
 console.log("Info.plist listo");
