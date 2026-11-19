@@ -1,0 +1,113 @@
+# Compila la app de iPhone (Capacitor) en un Mac de GitHub y la sube a App Store Connect / TestFlight.
+# Se lanza a mano: Actions → "iOS → TestFlight" → Run workflow. NO la envía a revisión de Apple.
+#
+# Secretos del repositorio (Settings → Secrets and variables → Actions):
+#   ASC_KEY_ID        Key ID de la clave de App Store Connect API (Users and Access → Integrations → App Store Connect API)
+#   ASC_ISSUER_ID     Issuer ID que aparece arriba de esa lista de claves
+#   ASC_KEY_P8        Contenido completo del archivo AuthKey_XXXXXX.p8 (rol Admin, para que Apple firme en la nube)
+name: iOS → TestFlight
+
+on:
+  push:
+    branches: [main]
+    paths: ["native/**", ".github/workflows/ios.yml"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versión visible (ej. 1.0.0)"
+        required: true
+        default: "1.0.0"
+
+env:
+  TEAM_ID: ${{ secrets.APPLE_TEAM_ID || 'R5YZJGFXKN' }}
+  BUNDLE_ID: com.alanfit.app
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: native
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Xcode más reciente
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+          xcodebuild -version
+
+      - name: Proyecto iOS (Capacitor)
+        env:
+          APP_VERSION: ${{ inputs.version || '1.0.0' }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          npm install
+          npx cap add ios --packagemanager SPM
+          node ios-assets.mjs
+          node ios-plist.mjs
+          npx cap sync ios
+
+      - name: Clave de App Store Connect
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          printf '%s' "$ASC_KEY_P8" > ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8
+
+      - name: Archive (firma automática en la nube)
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath $RUNNER_TEMP/AlanFit.xcarchive \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8 \
+            -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            archive
+
+      - name: Exportar el .ipa
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          cat > $RUNNER_TEMP/export.plist <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>export</string>
+            <key>teamID</key><string>${TEAM_ID}</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive -archivePath $RUNNER_TEMP/AlanFit.xcarchive \
+            -exportOptionsPlist $RUNNER_TEMP/export.plist -exportPath $RUNNER_TEMP/export \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID}.p8 \
+            -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AlanFit-ipa-${{ github.run_number }}
+          path: ${{ runner.temp }}/export/*.ipa
+          retention-days: 14
+
+      - name: Subir a App Store Connect (TestFlight)
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          xcrun altool --upload-app --type ios -f "$(ls $RUNNER_TEMP/export/*.ipa | head -1)" \
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+
+      - name: Borrar la clave del Mac
+        if: always()
+        run: rm -rf ~/.appstoreconnect
