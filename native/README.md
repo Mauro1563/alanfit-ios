@@ -10,9 +10,10 @@ Lo nativo (ayuda con la regla 4.2 de Apple, «no es solo una web»):
 - Pantalla de inicio, icono, barra de estado y pantalla sin conexión propias.
 
 ## Compilar sin Mac (GitHub Actions)
-1. Cargar los secretos `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` (ver `.github/workflows/ios.yml`).
-2. Crear la ficha de la app en App Store Connect con el bundle `com.alanfit.app`.
-3. Actions → **iOS → TestFlight** → Run workflow. El build aparece en TestFlight en ~15 min.
+La compilación se hace en el repositorio público **https://github.com/Mauro1563/alanfit-ios** (los Mac de
+GitHub son gratis en repos públicos). Ese repo tiene solo esta carpeta `native/` y el workflow; cada push a su
+`main` que toque `native/**` compila y sube un build nuevo a TestFlight. Si cambiás algo acá en `native/`,
+copialo también allá.
 
 ## Compilar con Mac (Xcode)
 ```bash
